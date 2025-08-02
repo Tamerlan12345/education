@@ -17,9 +17,7 @@ exports.handler = async function (event, context) {
 
         const courses = rows.map(row => ({
             id: row[0],
-            title: row[1],
-            // Мы берем doc_id из другого столбца, когда запрашиваем контент
-            doc_id: '' 
+            title: row[1]
         }));
 
         return {
@@ -28,10 +26,10 @@ exports.handler = async function (event, context) {
             body: JSON.stringify(courses),
         };
     } catch (error) {
-        console.error(error);
+        console.error("Ошибка в getCourses:", error.response ? error.response.data : error.message);
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: 'Failed to fetch courses' }),
+            body: JSON.stringify({ error: 'Failed to fetch courses from Google Sheet.' }),
         };
     }
 };
