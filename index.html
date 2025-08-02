@@ -158,7 +158,7 @@ async function showProduct(courseId) {
     contentArea.appendChild(productContent); // Показываем productContent, чтобы лоадер был внутри него
 
     try {
-        const response = await fetch(`/.netlify/functions/getCourseContent?doc_id=${currentCourse.doc_id}`);
+        const response = await fetch(`/.netlify/functions/getCourseContent?course_id=${currentCourse.id}`);
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Неизвестная ошибка');
