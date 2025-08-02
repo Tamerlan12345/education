@@ -80,8 +80,8 @@ function showLoader() {
     contentArea.innerHTML = '<div class="loader"></div>';
 }
 
-function showMessage(text) {
-    contentArea.innerHTML = `<div class="message">${text}</div>`;
+function showMessage(message, details = '') {
+    contentArea.innerHTML = `<div class="message">${message}<br><small style="color: #999;">${details}</small></div>`;
 }
 
 function initAuth() {
@@ -119,11 +119,14 @@ async function showMainMenu() {
     showLoader();
     try {
         const response = await fetch('/.netlify/functions/getCourses');
-        if (!response.ok) throw new Error(`Ошибка сервера: ${response.statusText}`);
+        if (!response.ok) {
+             const errorData = await response.json().catch(() => ({ error: `Ошибка сервера: ${response.statusText}` }));
+             throw new Error(errorData.error);
+        }
         
         courses = await response.json();
         
-        mainMenu.innerHTML = ''; // Очищаем после загрузки
+        mainMenu.innerHTML = '';
         contentArea.innerHTML = '';
         contentArea.appendChild(mainMenu);
 
@@ -141,7 +144,7 @@ async function showMainMenu() {
 
     } catch (error) {
         console.error('Не удалось загрузить курсы:', error);
-        showMessage('Не удалось загрузить список курсов. Попробуйте обновить страницу.');
+        showMessage('Не удалось загрузить список курсов. Попробуйте обновить страницу.', error.message);
     }
 }
 
@@ -152,16 +155,19 @@ async function showProduct(courseId) {
     windowTitle.textContent = currentCourse.title;
     mainMenu.classList.add('hidden');
     productContent.classList.remove('hidden');
+    testView.classList.add('hidden');
+    testResultsView.classList.add('hidden');
     backToMenuBtn.classList.remove('hidden');
-
-    showLoader();
-    contentArea.appendChild(productContent); // Показываем productContent, чтобы лоадер был внутри него
+    
+    contentArea.innerHTML = '';
+    contentArea.appendChild(productContent);
+    productContent.innerHTML = '<div class="loader"></div>';
 
     try {
         const response = await fetch(`/.netlify/functions/getCourseContent?course_id=${currentCourse.id}`);
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Неизвестная ошибка');
+            const errorData = await response.json().catch(() => ({ error: 'Не удалось получить детали ошибки от сервера.' }));
+            throw new Error(errorData.error);
         }
 
         const data = await response.json();
@@ -177,7 +183,7 @@ async function showProduct(courseId) {
 
     } catch (error) {
         console.error('Не удалось загрузить контент курса:', error);
-        productContent.innerHTML = `<div class="message">Ошибка при генерации контента курса. Это может занять некоторое время. Пожалуйста, попробуйте еще раз через минуту.<br><small>${error.message}</small></div>`;
+        showMessage('Ошибка при генерации контента курса. Это может занять некоторое время. Пожалуйста, попробуйте еще раз через минуту.', error.message);
     }
 }
 
