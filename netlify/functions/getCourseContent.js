@@ -1,5 +1,6 @@
 const gaxios = require('gaxios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const pdf = require('pdf-parse');
 
 // Получаем ключи и ID из переменных окружения
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID;
@@ -12,38 +13,42 @@ const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 // Функция для поиска doc_id в нашей Google Таблице по id курса
 async function getDocIdByCourseId(courseId) {
-    // Запрашиваем все три столбца A, B, C
     const range = `Лист1!A2:C`;
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${SHEETS_API_KEY}`;
-    
     try {
         const response = await gaxios.request({ url });
         const rows = response.data.values;
         if (rows) {
-            // Ищем строку, где значение в первой колонке (A) совпадает с id нашего курса
             const row = rows.find(r => r[0] === courseId);
-            if (row && row[2]) {
-                // Если строка найдена и в третьей колонке (C) есть значение, возвращаем его
-                return row[2];
-            }
+            if (row && row[2]) { return row[2]; }
         }
-        return null; // Если ничего не найдено
+        return null;
     } catch (error) {
         console.error('Ошибка при чтении Google Таблицы:', error);
         throw new Error('Не удалось получить doc_id из таблицы.');
     }
 }
 
-// Эта функция УЖЕ РАБОТАЕТ и для Google Docs, и для PDF. Менять не нужно!
-// Google API сам распознает, что это PDF, и выполнит OCR для извлечения текста.
+// Обновленная функция для получения контента.
+// Теперь она универсальна: читает и Google Docs, и PDF.
 async function getFileContentAsText(fileId) {
-    const url = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain&key=${SHEETS_API_KEY}`;
+    // Сначала пытаемся экспортировать как Google Doc
+    const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain&key=${SHEETS_API_KEY}`;
     try {
-        const response = await gaxios.request({ url, responseType: 'text' });
-        return response.data;
-    } catch (error) {
-        console.error('Ошибка при экспорте файла:', error.response ? error.response.data : error.message);
-        throw new Error('Не удалось получить содержимое файла. Убедитесь, что доступ к файлу открыт по ссылке.');
+        const response = await gaxios.request({ url: exportUrl, responseType: 'text' });
+        return response.data; // Успешно, это был Google Doc
+    } catch (exportError) {
+        // Если экспорт не удался, значит, это, скорее всего, PDF. Пытаемся его скачать.
+        console.log('Не удалось экспортировать файл, пробую скачать как PDF...');
+        const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${SHEETS_API_KEY}`;
+        try {
+            const response = await gaxios.request({ url: downloadUrl, responseType: 'arraybuffer' });
+            const data = await pdf(response.data);
+            return data.text; // Успешно, извлекли текст из PDF
+        } catch (downloadError) {
+            console.error('Ошибка при скачивании и парсинге PDF:', downloadError);
+            throw new Error('Не удалось прочитать файл. Файл не является ни Google Документом, ни PDF, или доступ к нему закрыт.');
+        }
     }
 }
 
@@ -55,16 +60,13 @@ exports.handler = async function (event, context) {
     }
     
     try {
-        // 1. Находим ID файла (PDF или Doc) по ID курса
         const doc_id = await getDocIdByCourseId(course_id);
         if (!doc_id) {
              return { statusCode: 404, body: JSON.stringify({ error: `Информация для курса '${course_id}' не найдена в таблице.` }) };
         }
 
-        // 2. Получаем текстовое содержимое файла
         const fileContent = await getFileContentAsText(doc_id);
         
-        // 3. Отправляем текст в Gemini (промпт остается тем же)
         const prompt = `
             Ты — методолог и эксперт по страхованию. Проанализируй следующий текст из внутреннего документа компании.
             Твоя задача — создать на его основе обучающий модуль для сотрудника.
