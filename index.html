@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Платформа Обучения | Centras Insurance</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
+        :root{--primary-color:#005A9C;--secondary-color:#00AEEF;--bg-color:#f4f7f6;--surface-color:#ffffff;--text-color:#333333;--text-light-color:#777777;--border-color:#e0e0e0;--success-color:#28a745;--error-color:#dc3545;--shadow:0 4px 15px rgba(0,0,0,0.08)}*{box-sizing:border-box}body,html{height:100%;margin:0;background-color:var(--bg-color);color:var(--text-color);font-family:'Lato',sans-serif;font-size:16px}.hidden{display:none !important}.container{width:100%;height:100%;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center}.window{border:1px solid var(--border-color);padding:30px;box-shadow:var(--shadow);background:var(--surface-color);border-radius:12px;width:100%;max-width:900px;position:relative}.window-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-color);padding-bottom:15px;margin-bottom:25px}.window-header h1,.window-header h2{margin:0;font-size:1.8em;color:var(--primary-color);font-weight:700}.logo{height:45px;width:auto}.content-area{height:60vh;overflow-y:auto;padding-right:15px}.content-area::-webkit-scrollbar{width:8px}.content-area::-webkit-scrollbar-track{background:#f1f1f1}.content-area::-webkit-scrollbar-thumb{background:var(--secondary-color);border-radius:4px}.content-area::-webkit-scrollbar-thumb:hover{background:var(--primary-color)}input[type="text"],input[type="email"]{background-color:var(--bg-color);border:1px solid var(--border-color);color:var(--text-color);padding:12px 15px;margin-bottom:15px;width:100%;font-family:'Lato',sans-serif;border-radius:8px;transition:border-color .3s,box-shadow .3s}input[type="text"]:focus,input[type="email"]:focus{outline:none;border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(0,90,156,0.2)}button,.btn{background:linear-gradient(45deg,var(--secondary-color),var(--primary-color));border:none;color:#fff;padding:12px 25px;cursor:pointer;text-transform:uppercase;transition:all .3s ease;box-shadow:0 2px 5px rgba(0,0,0,0.1);border-radius:8px;font-weight:700;letter-spacing:.5px;margin-top:10px}button:hover,.btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,174,239,0.3)}button:disabled{background:var(--text-light-color);cursor:not-allowed;transform:none;box-shadow:none}#auth-error{color:var(--error-color);margin-top:10px;text-align:center;font-weight:bold}#main-menu{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}.menu-item{padding:20px;border:1px solid var(--border-color);border-radius:10px;cursor:pointer;transition:all .3s ease;background-color:var(--surface-color)}.menu-item:hover{transform:translateY(-5px);box-shadow:var(--shadow);border-color:var(--primary-color)}.menu-item h3{margin-top:0;color:var(--primary-color);display:flex;align-items:center}.menu-item-icon{font-size:1.5em;margin-right:15px;color:var(--secondary-color)}.menu-item.completed{border-left:5px solid var(--success-color)}.menu-item.completed h3{color:var(--success-color)}.menu-item.completed::after{content:'✓ Завершено';color:var(--success-color);font-size:.8em;font-weight:bold;display:block;margin-top:10px}#product-content h2,#product-content h3{color:var(--primary-color)}#product-content h3{border-bottom:2px solid var(--secondary-color);padding-bottom:5px;margin-top:25px}#product-content ul{list-style-type:'✓ ';padding-left:20px}#product-content li{padding-left:10px;margin-bottom:10px}#test-view .question{margin-bottom:20px;font-size:1.3em;font-weight:bold;color:var(--primary-color)}#test-view .answers{display:flex;flex-direction:column;gap:10px}#test-view .answer{border:2px solid var(--border-color);padding:15px;cursor:pointer;border-radius:8px;transition:all .2s ease-in-out}#test-view .answer:hover{background-color:#e9f7fe;border-color:var(--secondary-color)}#test-results p{font-size:1.2em}#test-results .score{color:var(--primary-color);font-weight:bold;font-size:2em}.window-footer{margin-top:20px;border-top:1px solid var(--border-color);padding-top:20px;display:flex;justify-content:space-between;align-items:center}#back-to-menu-btn{background:var(--text-light-color)}#back-to-menu-btn:hover{background:#555;box-shadow:0 4px 10px rgba(0,0,0,0.2)}.loader{width:50px;height:50px;border:5px solid var(--bg-color);border-top-color:var(--primary-color);border-radius:50%;animation:spin 1s linear infinite;margin:50px auto}.message{text-align:center;padding:20px;font-size:1.1em;color:var(--text-light-color)}@keyframes spin{to{transform:rotate(360deg)}}
+    </style>
+</head>
+<body>
+    <div id="auth-view" class="container">
+        <div class="window">
+            <div class="window-header">
+                <h1>Платформа обучения</h1>
+                <img src="https://www.centras.kz/wp-content/uploads/2024/04/logo-sc.svg" alt="Logo" class="logo">
+            </div>
+            <form id="auth-form">
+                <p>Добро пожаловать! Пожалуйста, представьтесь для начала работы.</p>
+                <input type="text" id="user-name" placeholder="Ваше ФИО">
+                <input type="email" id="user-email" placeholder="Ваш рабочий Email">
+                <div id="auth-error" class="hidden"></div>
+                <button type="submit" id="auth-button">Войти</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="app-view" class="container hidden">
+        <div class="window">
+            <div class="window-header">
+                <h2 id="window-title">Главное Меню</h2>
+                 <img src="https://www.centras.kz/wp-content/uploads/2024/04/logo-sc.svg" alt="Logo" class="logo">
+            </div>
+            <div class="content-area" id="content-area">
+                <div id="main-menu"></div>
+                <div id="product-content" class="hidden"></div>
+                <div id="test-view" class="hidden">
+                    <p id="question-counter"></p>
+                    <div id="question" class="question"></div>
+                    <div id="answers" class="answers"></div>
+                    <button id="next-question-btn" class="hidden">Следующий вопрос</button>
+                </div>
+                <div id="test-results" class="hidden">
+                     <h2>Результаты тестирования</h2>
+                    <p>Продукт: <span id="results-product-name"></span></p>
+                    <p>Ваш результат: <span id="results-score" class="score"></span></p>
+                    <p id="results-feedback"></p>
+                    <button id="back-to-menu-from-results">Вернуться в меню</button>
+                </div>
+            </div>
+            <div class="window-footer">
+                <button id="back-to-menu-btn" class="hidden">Назад в меню</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const userData = { name: '', email: '' };
+let courses = [];
+let currentCourse = null;
+let testResults = {}; 
+
+const authView = document.getElementById('auth-view');
+const appView = document.getElementById('app-view');
+const authForm = document.getElementById('auth-form');
+const authError = document.getElementById('auth-error');
+
+const contentArea = document.getElementById('content-area');
+const mainMenu = document.getElementById('main-menu');
+const productContent = document.getElementById('product-content');
+const testView = document.getElementById('test-view');
+const testResultsView = document.getElementById('test-results');
+
+const windowTitle = document.getElementById('window-title');
+const backToMenuBtn = document.getElementById('back-to-menu-btn');
+const backToMenuFromResultsBtn = document.getElementById('back-to-menu-from-results');
+
+function showLoader() {
+    contentArea.innerHTML = '<div class="loader"></div>';
+}
+
+function showMessage(text) {
+    contentArea.innerHTML = `<div class="message">${text}</div>`;
+}
+
+function initAuth() {
+    authForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = document.getElementById('user-name').value.trim();
+        const email = document.getElementById('user-email').value.trim();
+        if (name && email) {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                authError.textContent = 'Ошибка: Неверный формат Email.';
+                authError.classList.remove('hidden');
+                return;
+            }
+            userData.name = name;
+            userData.email = email;
+            authView.classList.add('hidden');
+            appView.classList.remove('hidden');
+            authError.classList.add('hidden');
+            showMainMenu();
+        } else {
+            authError.textContent = 'Ошибка: Все поля обязательны для заполнения.';
+            authError.classList.remove('hidden');
+        }
+    });
+}
+
+async function showMainMenu() {
+    windowTitle.textContent = 'Главное Меню';
+    mainMenu.classList.remove('hidden');
+    productContent.classList.add('hidden');
+    testView.classList.add('hidden');
+    testResultsView.classList.add('hidden');
+    backToMenuBtn.classList.add('hidden');
+    
+    showLoader();
+    try {
+        const response = await fetch('/.netlify/functions/getCourses');
+        if (!response.ok) throw new Error(`Ошибка сервера: ${response.statusText}`);
+        
+        courses = await response.json();
+        
+        mainMenu.innerHTML = ''; // Очищаем после загрузки
+        contentArea.innerHTML = '';
+        contentArea.appendChild(mainMenu);
+
+        courses.forEach(course => {
+            const menuItem = document.createElement('div');
+            menuItem.className = 'menu-item';
+            if (testResults[course.id]) {
+                menuItem.classList.add('completed');
+            }
+            menuItem.dataset.courseId = course.id;
+            menuItem.innerHTML = `<h3><span class="menu-item-icon">📖</span>${course.title}</h3><p>Перейти к учебному модулю...</p>`;
+            menuItem.addEventListener('click', () => showProduct(course.id));
+            mainMenu.appendChild(menuItem);
+        });
+
+    } catch (error) {
+        console.error('Не удалось загрузить курсы:', error);
+        showMessage('Не удалось загрузить список курсов. Попробуйте обновить страницу.');
+    }
+}
+
+async function showProduct(courseId) {
+    currentCourse = courses.find(c => c.id === courseId);
+    if (!currentCourse) return;
+
+    windowTitle.textContent = currentCourse.title;
+    mainMenu.classList.add('hidden');
+    productContent.classList.remove('hidden');
+    backToMenuBtn.classList.remove('hidden');
+
+    showLoader();
+    contentArea.appendChild(productContent); // Показываем productContent, чтобы лоадер был внутри него
+
+    try {
+        const response = await fetch(`/.netlify/functions/getCourseContent?doc_id=${currentCourse.doc_id}`);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Неизвестная ошибка');
+        }
+
+        const data = await response.json();
+        currentCourse.summary = data.summary;
+        currentCourse.questions = data.questions;
+
+        productContent.innerHTML = currentCourse.summary;
+        const startTestBtn = document.createElement('button');
+        startTestBtn.id = 'start-test-btn';
+        startTestBtn.textContent = 'Начать тестирование';
+        startTestBtn.onclick = () => startTest(currentCourse.id);
+        productContent.appendChild(startTestBtn);
+
+    } catch (error) {
+        console.error('Не удалось загрузить контент курса:', error);
+        productContent.innerHTML = `<div class="message">Ошибка при генерации контента курса. Это может занять некоторое время. Пожалуйста, попробуйте еще раз через минуту.<br><small>${error.message}</small></div>`;
+    }
+}
+
+let currentQuestions = [], currentQuestionIndex = 0, score = 0;
+
+function startTest(courseId) {
+    currentCourse = courses.find(c => c.id === courseId);
+    productContent.classList.add('hidden');
+    
+    currentQuestions = [...currentCourse.questions].sort(() => 0.5 - Math.random());
+    currentQuestionIndex = 0;
+    score = 0;
+    
+    testView.classList.remove('hidden');
+    contentArea.innerHTML = '';
+    contentArea.appendChild(testView);
+    displayQuestion();
+}
+
+function displayQuestion() {
+    const nextBtn = document.getElementById('next-question-btn');
+    if (currentQuestionIndex < currentQuestions.length) {
+        const q = currentQuestions[currentQuestionIndex];
+        document.getElementById('question-counter').textContent = `Вопрос ${currentQuestionIndex + 1} из ${currentQuestions.length}`;
+        document.getElementById('question').textContent = q.question;
+        
+        const answersDiv = document.getElementById('answers');
+        answersDiv.innerHTML = '';
+        q.options.forEach((option, index) => {
+            const answerEl = document.createElement('div');
+            answerEl.className = 'answer';
+            answerEl.textContent = option;
+            answerEl.dataset.index = index;
+            answerEl.addEventListener('click', selectAnswer);
+            answersDiv.appendChild(answerEl);
+        });
+        nextBtn.classList.add('hidden');
+    } else {
+        showTestResultsView();
+    }
+}
+
+function selectAnswer(e) {
+    const selectedIndex = parseInt(e.target.dataset.index, 10);
+    const correctIndex = currentQuestions[currentQuestionIndex].correct_option_index;
+    
+    document.querySelectorAll('.answer').forEach(el => {
+        el.removeEventListener('click', selectAnswer);
+        el.style.cursor = 'default';
+    });
+
+    if (selectedIndex === correctIndex) {
+        score++;
+        e.target.style.borderColor = 'var(--success-color)';
+        e.target.style.backgroundColor = '#eaf7ec';
+    } else {
+        e.target.style.borderColor = 'var(--error-color)';
+        e.target.style.backgroundColor = '#fdeeee';
+        const correctAnswerEl = document.querySelector(`.answer[data-index='${correctIndex}']`);
+        if(correctAnswerEl) correctAnswerEl.style.borderColor = 'var(--success-color)';
+    }
+    
+    const nextBtn = document.getElementById('next-question-btn');
+    nextBtn.classList.remove('hidden');
+    nextBtn.onclick = () => {
+        currentQuestionIndex++;
+        displayQuestion();
+    };
+}
+
+function showTestResultsView() {
+    testView.classList.add('hidden');
+    testResultsView.classList.remove('hidden');
+    contentArea.innerHTML = '';
+    contentArea.appendChild(testResultsView);
+
+    const percentage = Math.round((score / currentQuestions.length) * 100);
+    document.getElementById('results-product-name').textContent = currentCourse.title;
+    document.getElementById('results-score').textContent = `${percentage}% (${score} из ${currentQuestions.length})`;
+    
+    let feedback = '';
+    if (percentage >= 80) feedback = 'Отличный результат! Материал усвоен.';
+    else if (percentage >= 60) feedback = 'Хороший результат. Рекомендуется повторить некоторые разделы.';
+    else feedback = 'Результат неудовлетворительный. Требуется повторное изучение модуля.';
+    document.getElementById('results-feedback').textContent = feedback;
+    
+    testResults[currentCourse.id] = { score, total: currentQuestions.length, percentage };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initAuth();
+    backToMenuBtn.addEventListener('click', showMainMenu);
+    backToMenuFromResultsBtn.addEventListener('click', showMainMenu);
+});
+</script>
+</body>
+</html>
