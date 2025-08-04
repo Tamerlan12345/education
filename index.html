@@ -157,7 +157,10 @@ async function showMainMenu() {
 
 async function showProduct(courseId, forceRegenerate = false) {
     currentCourse = courses.find(c => c.id === courseId);
-    if (!currentCourse) return;
+    if (!currentCourse) {
+        console.error("Курс с ID не найден:", courseId);
+        return;
+    }
 
     windowTitle.textContent = currentCourse.title;
     mainMenu.classList.add('hidden');
@@ -181,7 +184,10 @@ async function showProduct(courseId, forceRegenerate = false) {
     productContent.innerHTML = '<div class="loader"></div>';
 
     try {
+        // Вот строка, которая вызывает ошибку, если она неправильная.
+        // Убедитесь, что она передает `currentCourse.id`
         const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`;
+        
         const response = await fetch(url);
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: 'Не удалось получить детали ошибки от сервера.' }));
