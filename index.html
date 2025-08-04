@@ -102,19 +102,54 @@
             const email = document.getElementById('user-email').value.trim();
             const password = document.getElementById('user-password').value.trim();
             
-            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
-            if (error) {
+                if (error) throw error;
+                
+                if (data.session && data.session.access_token) {
+                    userData.email = data.user.email;
+                    userData.token = data.session.access_token;
+                    
+                    authView.classList.add('hidden');
+                    appView.classList.remove('hidden');
+                    showMainMenu();
+                } else {
+                    throw new Error("Не удалось получить сессию. Попробуйте снова.");
+                }
+
+            } catch (error) {
+                console.error("Ошибка входа:", error);
                 authError.textContent = 'Ошибка: неверный логин или пароль.';
                 authError.classList.remove('hidden');
-            } else {
-                userData.email = data.user.email;
-                userData.token = data.session.access_token;
-                authView.classList.add('hidden');
-                appView.classList.remove('hidden');
-                showMainMenu();
             }
         });
+    }
+
+    async function fetchAuthenticated(url, options = {}) {
+        if (!userData.token) {
+            throw new Error("Пользователь не авторизован. Токен отсутствует.");
+        }
+
+        const defaultHeaders = {
+            'Authorization': `Bearer ${userData.token}`
+        };
+
+        const finalOptions = {
+            ...options,
+            headers: {
+                ...defaultHeaders,
+                ...options.headers,
+            }
+        };
+
+        const response = await fetch(url, finalOptions);
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: `Ошибка сервера: ${response.statusText} (${response.status})` }));
+            throw new Error(errorData.error);
+        }
+        return response.json();
     }
 
     async function showMainMenu() {
@@ -129,15 +164,8 @@
         
         showLoader();
         try {
-            const response = await fetch(`/.netlify/functions/getCourses`, {
-                headers: { 'Authorization': `Bearer ${userData.token}` }
-            });
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: `Ошибка сервера: ${response.statusText}` }));
-                throw new Error(errorData.error);
-            }
+            const data = await fetchAuthenticated(`/.netlify/functions/getCourses`);
             
-            const data = await response.json();
             courses = data.courses;
             userProgress = data.userProgress;
 
@@ -156,7 +184,7 @@
 
         } catch (error) {
             console.error('Не удалось загрузить курсы:', error);
-            showMessage('Не удалось загрузить список курсов. Попробуйте обновить страницу.', error.message);
+            showMessage('Не удалось загрузить список курсов.', error.message);
         }
     }
     
@@ -187,15 +215,8 @@
 
         try {
             const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`;
-            const response = await fetch(url, {
-                headers: { 'Authorization': `Bearer ${userData.token}` }
-            });
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: 'Не удалось получить детали ошибки от сервера.' }));
-                throw new Error(errorData.error);
-            }
+            const data = await fetchAuthenticated(url);
 
-            const data = await response.json();
             currentCourse.summary = data.summary;
             currentCourse.questions = data.questions;
 
@@ -213,19 +234,146 @@
 
         } catch (error) {
             console.error('Не удалось загрузить контент курса:', error);
-            showMessage('Ошибка при генерации контента курса. Это может занять некоторое время.', error.message);
+            showMessage('Ошибка при генерации контента курса.', error.message);
         }
     }
     
-    chatForm.addEventListener('submit', async (e) => { e.preventDefault(); const userQuestion = chatInput.value.trim(); if (!userQuestion || !currentCourse) return; appendMessage(userQuestion, 'user'); chatInput.value = ''; chatInput.disabled = true; appendMessage('...', 'assistant', true); try { const response = await fetch(`/.netlify/functions/askAssistant?course_id=${currentCourse.id}&question=${encodeURIComponent(userQuestion)}`, { headers: { 'Authorization': `Bearer ${userData.token}` } }); if (!response.ok) { const errorData = await response.json().catch(() => ({ error: 'Не удалось получить ответ.' })); throw new Error(errorData.error); } const data = await response.json(); updateLastAssistantMessage(data.answer); } catch (error) { console.error('Ошибка ассистента:', error); updateLastAssistantMessage(`Извините, произошла ошибка. ${error.message}`); } finally { chatInput.disabled = false; chatInput.focus(); } });
-    function appendMessage(text, sender, isThinking = false) { const messageDiv = document.createElement('div'); messageDiv.className = `chat-message ${sender}-message`; const textSpan = document.createElement('span'); textSpan.textContent = text; if (isThinking) { messageDiv.classList.add('thinking'); messageDiv.id = 'thinking-indicator'; } messageDiv.appendChild(textSpan); chatBox.appendChild(messageDiv); chatBox.scrollTop = chatBox.scrollHeight; }
-    function updateLastAssistantMessage(text) { const thinkingIndicator = document.getElementById('thinking-indicator'); if (thinkingIndicator) { thinkingIndicator.querySelector('span').textContent = text; thinkingIndicator.classList.remove('thinking'); thinkingIndicator.id = ''; } }
+    chatForm.addEventListener('submit', async (e) => { 
+        e.preventDefault(); 
+        const userQuestion = chatInput.value.trim(); 
+        if (!userQuestion || !currentCourse) return; 
+        appendMessage(userQuestion, 'user'); 
+        chatInput.value = ''; 
+        chatInput.disabled = true; 
+        appendMessage('...', 'assistant', true); 
+        try { 
+            const url = `/.netlify/functions/askAssistant?course_id=${currentCourse.id}&question=${encodeURIComponent(userQuestion)}`;
+            const data = await fetchAuthenticated(url);
+            updateLastAssistantMessage(data.answer); 
+        } catch (error) { 
+            console.error('Ошибка ассистента:', error); 
+            updateLastAssistantMessage(`Извините, произошла ошибка: ${error.message}`); 
+        } finally { 
+            chatInput.disabled = false; 
+            chatInput.focus(); 
+        } 
+    });
+    
+    function appendMessage(text, sender, isThinking = false) { 
+        const messageDiv = document.createElement('div'); 
+        messageDiv.className = `chat-message ${sender}-message`; 
+        const textSpan = document.createElement('span'); 
+        textSpan.textContent = text; 
+        if (isThinking) { 
+            messageDiv.classList.add('thinking'); 
+            messageDiv.id = 'thinking-indicator'; 
+        } 
+        messageDiv.appendChild(textSpan); 
+        chatBox.appendChild(messageDiv); 
+        chatBox.scrollTop = chatBox.scrollHeight; 
+    }
+    
+    function updateLastAssistantMessage(text) { 
+        const thinkingIndicator = document.getElementById('thinking-indicator'); 
+        if (thinkingIndicator) { 
+            thinkingIndicator.querySelector('span').textContent = text; 
+            thinkingIndicator.classList.remove('thinking'); 
+            thinkingIndicator.id = ''; 
+        } 
+    }
+    
     let currentQuestions = [], currentQuestionIndex = 0, score = 0;
-    function startTest(courseId) { currentCourse = courses.find(c => c.id === courseId); productContent.classList.add('hidden'); assistantContainer.classList.add('hidden'); adminControls.classList.add('hidden'); testView.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(testView); displayQuestion(); }
-    function displayQuestion() { const nextBtn = document.getElementById('next-question-btn'); if (currentQuestionIndex < currentQuestions.length) { const q = currentQuestions[currentQuestionIndex]; document.getElementById('question-counter').textContent = `Вопрос ${currentQuestionIndex + 1} из ${currentQuestions.length}`; document.getElementById('question').textContent = q.question; const answersDiv = document.getElementById('answers'); answersDiv.innerHTML = ''; q.options.forEach((option, index) => { const answerEl = document.createElement('div'); answerEl.className = 'answer'; answerEl.textContent = option; answerEl.dataset.index = index; answerEl.addEventListener('click', selectAnswer); answersDiv.appendChild(answerEl); }); nextBtn.classList.add('hidden'); } else { showTestResultsView(); } }
-    function selectAnswer(e) { const selectedIndex = parseInt(e.target.dataset.index, 10); const correctIndex = currentQuestions[currentQuestionIndex].correct_option_index; document.querySelectorAll('.answer').forEach(el => { el.removeEventListener('click', selectAnswer); el.style.cursor = 'default'; }); if (selectedIndex === correctIndex) { score++; e.target.style.borderColor = 'var(--success-color)'; e.target.style.backgroundColor = '#eaf7ec'; } else { e.target.style.borderColor = 'var(--error-color)'; e.target.style.backgroundColor = '#fdeeee'; const correctAnswerEl = document.querySelector(`.answer[data-index='${correctIndex}']`); if(correctAnswerEl) correctAnswerEl.style.borderColor = 'var(--success-color)'; } const nextBtn = document.getElementById('next-question-btn'); nextBtn.classList.remove('hidden'); nextBtn.onclick = () => { currentQuestionIndex++; displayQuestion(); }; }
-    async function showTestResultsView() { testView.classList.add('hidden'); testResultsView.classList.remove('hidden'); contentArea.innerHTML = ''; contentArea.appendChild(testResultsView); const percentage = Math.round((score / currentQuestions.length) * 100); document.getElementById('results-product-name').textContent = currentCourse.title; document.getElementById('results-score').textContent = `${percentage}% (${score} из ${currentQuestions.length})`; let feedback = ''; if (percentage >= 80) feedback = 'Отличный результат! Материал усвоен.'; else if (percentage >= 60) feedback = 'Хороший результат. Рекомендуется повторить некоторые разделы.'; else feedback = 'Результат неудовлетворительный. Требуется повторное изучение модуля.'; document.getElementById('results-feedback').textContent = feedback; userProgress[currentCourse.id] = { completed: true, score, total: currentQuestions.length, percentage }; try { await fetch('/.netlify/functions/saveTestResult', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userData.token}` }, body: JSON.stringify({ course_id: currentCourse.id, score: score, total_questions: currentQuestions.length, percentage: percentage }) }); } catch(error) { console.error('Не удалось сохранить результат:', error); } }
-    document.addEventListener('DOMContentLoaded', () => { initAuth(); backToMenuBtn.addEventListener('click', showMainMenu); backToMenuFromResultsBtn.addEventListener('click', showMainMenu); });
+    
+    function startTest(courseId) { 
+        currentCourse = courses.find(c => c.id === courseId); 
+        productContent.classList.add('hidden'); 
+        assistantContainer.classList.add('hidden'); 
+        adminControls.classList.add('hidden'); 
+        testView.classList.remove('hidden'); 
+        contentArea.innerHTML = ''; 
+        contentArea.appendChild(testView); 
+        displayQuestion(); 
+    }
+    
+    function displayQuestion() { 
+        const nextBtn = document.getElementById('next-question-btn'); 
+        if (currentQuestionIndex < currentQuestions.length) { 
+            const q = currentQuestions[currentQuestionIndex]; 
+            document.getElementById('question-counter').textContent = `Вопрос ${currentQuestionIndex + 1} из ${currentQuestions.length}`; 
+            document.getElementById('question').textContent = q.question; 
+            const answersDiv = document.getElementById('answers'); 
+            answersDiv.innerHTML = ''; 
+            q.options.forEach((option, index) => { 
+                const answerEl = document.createElement('div'); 
+                answerEl.className = 'answer'; 
+                answerEl.textContent = option; 
+                answerEl.dataset.index = index; 
+                answerEl.addEventListener('click', selectAnswer); 
+                answersDiv.appendChild(answerEl); 
+            }); 
+            nextBtn.classList.add('hidden'); 
+        } else { 
+            showTestResultsView(); 
+        } 
+    }
+    
+    function selectAnswer(e) { 
+        const selectedIndex = parseInt(e.target.dataset.index, 10); 
+        const correctIndex = currentQuestions[currentQuestionIndex].correct_option_index; 
+        document.querySelectorAll('.answer').forEach(el => { 
+            el.removeEventListener('click', selectAnswer); 
+            el.style.cursor = 'default'; 
+        }); 
+        if (selectedIndex === correctIndex) { 
+            score++; 
+            e.target.style.borderColor = 'var(--success-color)'; 
+            e.target.style.backgroundColor = '#eaf7ec'; 
+        } else { 
+            e.target.style.borderColor = 'var(--error-color)'; 
+            e.target.style.backgroundColor = '#fdeeee'; 
+            const correctAnswerEl = document.querySelector(`.answer[data-index='${correctIndex}']`); 
+            if(correctAnswerEl) correctAnswerEl.style.borderColor = 'var(--success-color)'; 
+        } 
+        const nextBtn = document.getElementById('next-question-btn'); 
+        nextBtn.classList.remove('hidden'); 
+        nextBtn.onclick = () => { currentQuestionIndex++; displayQuestion(); }; 
+    }
+    
+    async function showTestResultsView() { 
+        testView.classList.add('hidden'); 
+        testResultsView.classList.remove('hidden'); 
+        contentArea.innerHTML = ''; 
+        contentArea.appendChild(testResultsView); 
+        const percentage = Math.round((score / currentQuestions.length) * 100); 
+        document.getElementById('results-product-name').textContent = currentCourse.title; 
+        document.getElementById('results-score').textContent = `${percentage}% (${score} из ${currentQuestions.length})`; 
+        let feedback = ''; 
+        if (percentage >= 80) feedback = 'Отличный результат! Материал усвоен.'; 
+        else if (percentage >= 60) feedback = 'Хороший результат. Рекомендуется повторить некоторые разделы.'; 
+        else feedback = 'Результат неудовлетворительный. Требуется повторное изучение модуля.'; 
+        document.getElementById('results-feedback').textContent = feedback; 
+        userProgress[currentCourse.id] = { completed: true, score, total: currentQuestions.length, percentage }; 
+        try { 
+            await fetchAuthenticated('/.netlify/functions/saveTestResult', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ 
+                    course_id: currentCourse.id, 
+                    score: score, 
+                    total_questions: currentQuestions.length, 
+                    percentage: percentage 
+                }) 
+            }); 
+        } catch(error) { 
+            console.error('Не удалось сохранить результат:', error); 
+        } 
+    }
+    
+    document.addEventListener('DOMContentLoaded', () => { 
+        initAuth(); 
+        backToMenuBtn.addEventListener('click', showMainMenu); 
+        backToMenuFromResultsBtn.addEventListener('click', showMainMenu); 
+    });
 </script>
 </body>
 </html>
