@@ -68,7 +68,7 @@
 const userData = { name: '', email: '' };
 let courses = [];
 let currentCourse = null;
-let testResults = {}; 
+let userProgress = {}; 
 
 // Elements
 const authView = document.getElementById('auth-view');
@@ -126,7 +126,7 @@ async function showMainMenu() {
     
     showLoader();
     try {
-        const response = await fetch(`/.netlify/functions/getCourses?user_email=${userData.email}`);
+        const response = await fetch(`/.netlify/functions/getCourses?user_email=${encodeURIComponent(userData.email)}`);
         if (!response.ok) {
              const errorData = await response.json().catch(() => ({ error: `Ошибка сервера: ${response.statusText}` }));
              throw new Error(errorData.error);
@@ -134,7 +134,7 @@ async function showMainMenu() {
         
         const data = await response.json();
         courses = data.courses;
-        testResults = data.userProgress;
+        userProgress = data.userProgress;
 
         mainMenu.innerHTML = ''; contentArea.innerHTML = '';
         contentArea.appendChild(mainMenu);
@@ -142,7 +142,7 @@ async function showMainMenu() {
         courses.forEach(course => {
             const menuItem = document.createElement('div');
             menuItem.className = 'menu-item';
-            if (testResults[course.id]) menuItem.classList.add('completed');
+            if (userProgress[course.id]) menuItem.classList.add('completed');
             menuItem.dataset.courseId = course.id;
             menuItem.innerHTML = `<h3><span class="menu-item-icon">📖</span>${course.title}</h3><p>Перейти к учебному модулю...</p>`;
             menuItem.addEventListener('click', () => showProduct(course.id));
@@ -181,6 +181,7 @@ async function showProduct(courseId, forceRegenerate = false) {
     productContent.innerHTML = '<div class="loader"></div>';
 
     try {
+        // <-- ПРОВЕРЬТЕ ЭТУ СТРОКУ -->
         const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`;
         const response = await fetch(url);
         if (!response.ok) {
@@ -192,11 +193,9 @@ async function showProduct(courseId, forceRegenerate = false) {
         currentCourse.summary = data.summary;
         currentCourse.questions = data.questions;
 
-        // Logic for slider
+        // Logic for slider (simple version)
         if (Array.isArray(currentCourse.summary)) {
-            // Here you would integrate a library like Swiper.js
-            // For now, we'll just join them.
-            productContent.innerHTML = currentCourse.summary.map(slide => `<div><h3>${slide.title}</h3>${slide.html_content}</div>`).join('<hr>');
+            productContent.innerHTML = currentCourse.summary.map(slide => `<div><h3>${slide.title}</h3>${slide.html_content}</div>`).join('<hr style="margin: 20px 0;">');
         } else {
              productContent.innerHTML = currentCourse.summary;
         }
@@ -223,6 +222,7 @@ chatForm.addEventListener('submit', async (e) => {
     appendMessage('...', 'assistant', true);
 
     try {
+        // <-- ПРОВЕРЬТЕ ЭТУ СТРОКУ -->
         const response = await fetch(`/.netlify/functions/askAssistant?course_id=${currentCourse.id}&question=${encodeURIComponent(userQuestion)}`);
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: 'Не удалось получить ответ.' }));
@@ -333,7 +333,7 @@ async function showTestResultsView() {
     else feedback = 'Результат неудовлетворительный. Требуется повторное изучение модуля.';
     document.getElementById('results-feedback').textContent = feedback;
     
-    testResults[currentCourse.id] = { score, total: currentQuestions.length, percentage };
+    userProgress[currentCourse.id] = { completed: true, score, total: currentQuestions.length, percentage };
 
     // Save result to DB
     try {
@@ -360,4 +360,3 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
-
