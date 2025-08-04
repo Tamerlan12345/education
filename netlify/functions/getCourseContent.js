@@ -1,25 +1,36 @@
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import gaxios from 'gaxios';
 import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+const GOOGLE_API_KEY = process.env.GOOGLE_SHEETS_API_KEY; 
 
-async function getFileContentAsText(filePath) {
-    const { data: fileData, error: downloadError } = await supabase.storage.from('course_materials').download(filePath);
-    if (downloadError) throw new Error(`Не удалось скачать файл: ${downloadError.message}`);
+async function getFileContentFromGoogleDrive(fileId) {
+    const metaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType&key=${GOOGLE_API_KEY}`;
+    const metaResponse = await gaxios.request({ url: metaUrl });
+    const mimeType = metaResponse.data.mimeType;
 
-    const fileBuffer = Buffer.from(await fileData.arrayBuffer());
-    
-    if (filePath.endsWith('.pdf')) {
-        return (await pdf(fileBuffer)).text;
-    } else if (filePath.endsWith('.docx')) {
-        return (await mammoth.extractRawText({ buffer: fileBuffer })).value;
-    } else {
-        throw new Error('Поддерживаются только .pdf и .docx.');
+    let textContent = '';
+
+    switch (mimeType) {
+        case 'application/vnd.google-apps.document':
+        case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+            const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain&key=${GOOGLE_API_KEY}`;
+            textContent = (await gaxios.request({ url: exportUrl, responseType: 'text' })).data;
+            break;
+        case 'application/pdf':
+            const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${GOOGLE_API_KEY}`;
+            const response = await gaxios.request({ url: downloadUrl, responseType: 'arraybuffer' });
+            textContent = (await pdf(response.data)).text;
+            break;
+        default:
+            throw new Error(`Unsupported file type: ${mimeType}. Поддерживаются только Google Docs, PDF и .docx.`);
     }
+    return textContent;
 }
 
 async function generateCourseFromAI(fileContent) {
@@ -39,14 +50,14 @@ export const handler = async (event) => {
         const { course_id, force_regenerate } = event.queryStringParameters;
         if (!course_id) return { statusCode: 400, body: JSON.stringify({ error: 'course_id is required' }) };
 
-        const { data: courseData, error: courseError } = await supabase.from('courses').select('file_path, content_html, questions').eq('course_id', course_id).single();
+        const { data: courseData, error: courseError } = await supabase.from('courses').select('doc_id, content_html, questions').eq('course_id', course_id).single();
         if (courseError || !courseData) throw new Error('Курс не найден.');
         
         if (courseData.content_html && courseData.questions && force_regenerate !== 'true') {
             return { statusCode: 200, body: JSON.stringify({ summary: courseData.content_html, questions: courseData.questions }) };
         }
 
-        const fileContent = await getFileContentAsText(courseData.file_path);
+        const fileContent = await getFileContentFromGoogleDrive(courseData.doc_id);
         const newContent = await generateCourseFromAI(fileContent);
 
         const { error: updateError } = await supabase.from('courses').update({ content_html: newContent.summary, questions: newContent.questions, last_updated: new Date().toISOString() }).eq('course_id', course_id);
