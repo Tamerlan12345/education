@@ -1,35 +1,51 @@
-const gaxios = require('gaxios');
+import { createClient } from '@supabase/supabase-js';
 
-exports.handler = async function (event, context) {
-    const SHEET_ID = process.env.GOOGLE_SHEETS_ID;
-    const API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Лист1!A2:B?key=${API_KEY}`;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-    try {
-        const response = await gaxios.request({ url });
-        const rows = response.data.values;
-        if (!rows || rows.length === 0) {
-            return {
-                statusCode: 200,
-                body: JSON.stringify([]),
-            };
-        }
+export const handler = async (event) => {
+  const user_email = event.queryStringParameters.user_email;
 
-        const courses = rows.map(row => ({
-            id: row[0],
-            title: row[1]
-        }));
+  try {
+    // Получаем все курсы
+    const { data: coursesData, error: coursesError } = await supabase
+      .from('courses')
+      .select('course_id, title');
+      
+    if (coursesError) throw coursesError;
 
-        return {
-            statusCode: 200,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(courses),
-        };
-    } catch (error) {
-        console.error("Ошибка в getCourses:", error.response ? error.response.data : error.message);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ error: 'Failed to fetch courses from Google Sheet.' }),
-        };
+    // Получаем прогресс конкретного пользователя
+    let userProgress = {};
+    if (user_email) {
+      const { data: progressData, error: progressError } = await supabase
+        .from('user_progress')
+        .select('course_id, percentage')
+        .eq('user_email', user_email);
+
+      if (progressError) throw progressError;
+      
+      // Преобразуем прогресс в удобный формат { course_id: { ... } }
+      progressData.forEach(p => {
+        userProgress[p.course_id] = { completed: true, percentage: p.percentage };
+      });
     }
+
+    const courses = coursesData.map(course => ({
+      id: course.course_id,
+      title: course.title,
+    }));
+
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ courses, userProgress }),
+    };
+  } catch (error) {
+    console.error("Ошибка при получении курсов из Supabase:", error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Failed to fetch courses from Supabase.' }),
+    };
+  }
 };
