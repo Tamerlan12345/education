@@ -181,7 +181,6 @@ async function showProduct(courseId, forceRegenerate = false) {
     productContent.innerHTML = '<div class="loader"></div>';
 
     try {
-        // <-- ПРОВЕРЬТЕ ЭТУ СТРОКУ -->
         const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`;
         const response = await fetch(url);
         if (!response.ok) {
@@ -222,7 +221,6 @@ chatForm.addEventListener('submit', async (e) => {
     appendMessage('...', 'assistant', true);
 
     try {
-        // <-- ПРОВЕРЬТЕ ЭТУ СТРОКУ -->
         const response = await fetch(`/.netlify/functions/askAssistant?course_id=${currentCourse.id}&question=${encodeURIComponent(userQuestion)}`);
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: 'Не удалось получить ответ.' }));
@@ -339,6 +337,9 @@ async function showTestResultsView() {
     try {
         await fetch('/.netlify/functions/saveTestResult', {
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
                 user_email: userData.email,
                 course_id: currentCourse.id,
