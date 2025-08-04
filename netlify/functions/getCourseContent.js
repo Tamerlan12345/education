@@ -1,107 +1,105 @@
-const gaxios = require('gaxios');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const pdf = require('pdf-parse');
+import { createClient } from '@supabase/supabase-js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import gaxios from 'gaxios';
+import pdf from 'pdf-parse';
 
-const SHEET_ID = process.env.GOOGLE_SHEETS_ID;
-const SHEETS_API_KEY = process.env.GOOGLE_SHEETS_API_KEY;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+// --- Инициализация клиентов ---
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+const SHEETS_API_KEY = process.env.GOOGLE_SHEETS_API_KEY; // Используется для доступа к Drive
 
-async function getDocIdByCourseId(courseId) {
-    const range = `Лист1!A2:C`;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${SHEETS_API_KEY}`;
-    try {
-        const response = await gaxios.request({ url });
-        const rows = response.data.values;
-        if (rows) {
-            const row = rows.find(r => r[0] === courseId);
-            if (row && row[2]) { return row[2]; }
-        }
-        return null;
-    } catch (error) {
-        console.error('Ошибка при чтении Google Таблицы:', error);
-        throw new Error('Не удалось получить doc_id из таблицы.');
-    }
-}
-
+// --- Вспомогательные функции ---
 async function getFileContentAsText(fileId) {
     const exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain&key=${SHEETS_API_KEY}`;
     try {
         return (await gaxios.request({ url: exportUrl, responseType: 'text' })).data;
     } catch (exportError) {
-        console.log('Не удалось экспортировать, пробую скачать как PDF...');
         const downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${SHEETS_API_KEY}`;
         try {
             const response = await gaxios.request({ url: downloadUrl, responseType: 'arraybuffer' });
             return (await pdf(response.data)).text;
         } catch (downloadError) {
-            throw new Error('Не удалось прочитать файл. Файл не является ни Google Документом, ни PDF, или доступ к нему закрыт.');
+            throw new Error('Не удалось прочитать файл. Убедитесь, что доступ к файлу открыт по ссылке.');
         }
     }
 }
 
-exports.handler = async function (event, context) {
-    const course_id = event.queryStringParameters.course_id;
-    if (!course_id) {
-        return { statusCode: 400, body: JSON.stringify({ error: 'course_id is required' }) };
-    }
-    
-    try {
-        const doc_id = await getDocIdByCourseId(course_id);
-        if (!doc_id) {
-             return { statusCode: 404, body: JSON.stringify({ error: `Информация для курса '${course_id}' не найдена.` }) };
+async function generateCourseFromAI(fileContent) {
+    const prompt = `
+        Задание: Ты — опытный AI-наставник. Создай подробный и понятный пошаговый план обучения из 3-5 уроков (слайдов) на основе текста документа. Каждый раз генерируй немного разный текст и примеры, но СТРОГО в рамках документа.
+        Требования к результату:
+        1.  Для каждого урока-слайда создай: "title" (заголовок) и "html_content" (подробный обучающий текст в HTML-разметке).
+        2.  После всех уроков создай 5 тестовых вопросов по всему материалу.
+        3.  Верни результат СТРОГО в формате JSON.
+        Структура JSON:
+        {
+          "summary": [
+            { "title": "Урок 1: Введение", "html_content": "<p>Текст...</p>" },
+            { "title": "Урок 2: Основные риски", "html_content": "<p>Текст...</p>" }
+          ],
+          "questions": [
+            { "question": "Вопрос 1", "options": ["A", "B", "C"], "correct_option_index": 0 }
+          ]
         }
-        const fileContent = await getFileContentAsText(doc_id);
+        ТЕКСТ ДОКУМЕНТА ДЛЯ ОБРАБОТКИ:
+        ---
+        ${fileContent}
+        ---
+    `;
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(jsonString);
+}
+
+
+// --- Основной обработчик ---
+export const handler = async (event) => {
+    const { course_id, force_regenerate } = event.queryStringParameters;
+    if (!course_id) return { statusCode: 400, body: JSON.stringify({ error: 'course_id is required' }) };
+
+    try {
+        // 1. Найти курс в базе данных
+        const { data: courseData, error: courseError } = await supabase
+            .from('courses')
+            .select('doc_id, content_html, questions')
+            .eq('course_id', course_id)
+            .single();
+
+        if (courseError || !courseData) throw new Error('Курс не найден в базе данных.');
         
-        // --- ОБНОВЛЕННЫЙ ПРОМПТ ---
-        const prompt = `
-            Задание: Ты — опытный AI-наставник в страховой компании. Твоя задача — создать подробный и понятный обучающий модуль на основе внутреннего документа. Каждый раз старайся объяснять материал немного по-разному, используя разные примеры и аналогии, но оставаясь СТРОГО в рамках предоставленного текста.
+        // 2. Проверить кэш. Если есть контент и не нужна регенерация, отдать его.
+        if (courseData.content_html && courseData.questions && force_regenerate !== 'true') {
+            return {
+                statusCode: 200,
+                body: JSON.stringify({ summary: courseData.content_html, questions: courseData.questions }),
+            };
+        }
 
-            Требования к плану обучения:
-            1.  **Структура**: Разбей обучение на логические блоки с заголовками <h2>. Например: "Что страхуем?", "Ключевые риски", "Важные исключения".
-            2.  **Глубина**: В каждом блоке подробно раскрой тему, используя подзаголовки <h3> и списки <ul>/<li>. Объясняй сложные термины простыми словами.
-            3.  **Контент**: Вся без исключения информация должна быть взята из "ТЕКСТА ДОКУМЕНТА ДЛЯ ОБРАБОТКИ". Не добавляй ничего от себя.
-            4.  **Тесты**: Создай ровно 5 вопросов для проверки, которые затрагивают самые важные аспекты документа.
-            5.  **Объем информации**: Расписывай все детально в трех предложениях с текста документа.
+        // 3. Если кэша нет или нужна регенерация -> генерируем новый контент
+        const fileContent = await getFileContentAsText(courseData.doc_id);
+        const newContent = await generateCourseFromAI(fileContent);
 
-            Требования к формату вывода:
-            - Верни результат СТРОГО в формате JSON.
-            - Не добавляй никаких слов или markdown-разметки до или после JSON-объекта.
-            - Структура JSON должна быть следующей:
-            {
-              "summary": "HTML-форматированный текст подробного плана обучения.",
-              "questions": [
-                {
-                  "question": "Текст вопроса",
-                  "options": ["Вариант 1", "Вариант 2", "Вариант 3"],
-                  "correct_option_index": 0
-                }
-              ]
-            }
+        // 4. Сохраняем новый контент в базу данных
+        const { error: updateError } = await supabase
+            .from('courses')
+            .update({ 
+                content_html: newContent.summary,
+                questions: newContent.questions,
+                last_updated: new Date().toISOString() 
+            })
+            .eq('course_id', course_id);
 
-            ТЕКСТ ДОКУМЕНТА ДЛЯ ОБРАБОТКИ:
-            ---
-            ${fileContent}
-            ---
-        `;
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const jsonString = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-        const data = JSON.parse(jsonString);
+        if (updateError) throw updateError;
 
         return {
             statusCode: 200,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
+            body: JSON.stringify(newContent),
         };
     } catch (error) {
         console.error("Ошибка при обработке контента курса:", error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ error: 'Не удалось сгенерировать контент. ' + error.message }),
-        };
+        return { statusCode: 500, body: JSON.stringify({ error: 'Не удалось сгенерировать контент. ' + error.message }) };
     }
 };
