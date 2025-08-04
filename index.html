@@ -107,7 +107,7 @@
 
                 if (error) throw error;
                 
-                if (data.session && data.session.access_token) {
+                if (data && data.session && data.session.access_token) {
                     userData.email = data.user.email;
                     userData.token = data.session.access_token;
                     
@@ -130,11 +130,9 @@
         if (!userData.token) {
             throw new Error("Пользователь не авторизован. Токен отсутствует.");
         }
-
         const defaultHeaders = {
             'Authorization': `Bearer ${userData.token}`
         };
-
         const finalOptions = {
             ...options,
             headers: {
@@ -142,9 +140,7 @@
                 ...options.headers,
             }
         };
-
         const response = await fetch(url, finalOptions);
-
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: `Ошибка сервера: ${response.statusText} (${response.status})` }));
             throw new Error(errorData.error);
@@ -165,11 +161,10 @@
         showLoader();
         try {
             const data = await fetchAuthenticated(`/.netlify/functions/getCourses`);
-            
             courses = data.courses;
             userProgress = data.userProgress;
-
-            mainMenu.innerHTML = ''; contentArea.innerHTML = '';
+            mainMenu.innerHTML = ''; 
+            contentArea.innerHTML = '';
             contentArea.appendChild(mainMenu);
 
             courses.forEach(course => {
@@ -181,7 +176,6 @@
                 menuItem.addEventListener('click', () => showProduct(course.id));
                 mainMenu.appendChild(menuItem);
             });
-
         } catch (error) {
             console.error('Не удалось загрузить курсы:', error);
             showMessage('Не удалось загрузить список курсов.', error.message);
@@ -200,8 +194,8 @@
         testView.classList.add('hidden');
         testResultsView.classList.add('hidden');
         backToMenuBtn.classList.remove('hidden');
-        
         contentArea.innerHTML = '';
+        
         if (userData.email.toLowerCase() === 'admin@cic.kz') {
             adminControls.innerHTML = `<button id="regenerate-btn">🔄 Сгенерировать заново</button>`;
             adminControls.classList.remove('hidden');
@@ -216,7 +210,6 @@
         try {
             const url = `/.netlify/functions/getCourseContent?course_id=${currentCourse.id}&force_regenerate=${forceRegenerate}`;
             const data = await fetchAuthenticated(url);
-
             currentCourse.summary = data.summary;
             currentCourse.questions = data.questions;
 
@@ -231,7 +224,6 @@
             startTestBtn.textContent = 'Начать тестирование';
             startTestBtn.onclick = () => startTest(currentCourse.id);
             productContent.appendChild(startTestBtn);
-
         } catch (error) {
             console.error('Не удалось загрузить контент курса:', error);
             showMessage('Ошибка при генерации контента курса.', error.message);
@@ -283,7 +275,6 @@
     }
     
     let currentQuestions = [], currentQuestionIndex = 0, score = 0;
-    
     function startTest(courseId) { 
         currentCourse = courses.find(c => c.id === courseId); 
         productContent.classList.add('hidden'); 
